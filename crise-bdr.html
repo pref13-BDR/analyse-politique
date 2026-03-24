@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cellule de Crise — Préfecture des Bouches-du-Rhône</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════
+   CELLULE DE CRISE — BOUCHES-DU-RHÔNE
+   Interface salle de crise / affichage préfectoral
+   Thème : dark opérationnel, palette de vigilance officielle
+   ══════════════════════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  /* Palette de fond */
+  --bg:        #0c0f18;
+  --surface:   #121828;
+  --surface2:  #1a2236;
+  --surface3:  #212d42;
+  --border:    #2a3855;
+  --border2:   #354870;
+
+  /* Texte */
+  --text:      #e2e8f4;
+  --text2:     #94a8c7;
+  --text3:     #5a7098;
+
+  /* Marque */
+  --bleu:      #1a4aad;
+  --bleu-vif:  #2563eb;
+  --rouge:     #dc2626;
+
+  /* Niveaux alerte — palette Météo-France / Sécurité civile */
+  --n0-color:  #22c55e;   /* Veille (vert) */
+  --n0-bg:     #052e16;
+  --n0-border: #166534;
+  --n1-color:  #facc15;   /* Vigilance (jaune) */
+  --n1-bg:     #1c1400;
+  --n1-border: #713f12;
+  --n2-color:  #f97316;   /* Alerte (orange) */
+  --n2-bg:     #1c0a00;
+  --n2-border: #7c2d12;
+  --n3-color:  #ef4444;   /* Urgence (rouge) */
+  --n3-bg:     #1c0000;
+  --n3-border: #7f1d1d;
+  --n4-color:  #c084fc;   /* Catastrophe (violet) */
+  --n4-bg:     #180a2e;
+  --n4-border: #581c87;
+
+  --shadow:    0 4px 24px rgba(0,0,0,.55);
+  --shadow-lg: 0 8px 48px rgba(0,0,0,.75);
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+html, body { height:100%; font-family:'Inter', system-ui, sans-serif; background:var(--bg); color:var(--text); overflow:hidden; font-size:13px; }
+
+/* ─── CHARGEMENT ──────────────────────────────────────── */
+#screen-loading {
+  position:fixed; inset:0; z-index:9000; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px;
+}
+.rf-bloc { display:flex; align-items:stretch; background:#0f1624; border:1px solid var(--border2); height:60px; }
+.rf-flag { display:flex; height:60px; }
+.rf-flag span { display:block; width:16px; height:60px; }
+.rf-flag span:nth-child(1) { background:#002395; }
+.rf-flag span:nth-child(2) { background:#fff; }
+.rf-flag span:nth-child(3) { background:#ED2939; }
+.rf-label { padding:0 16px; display:flex; flex-direction:column; justify-content:center; gap:2px; }
+.rf-label strong { font-family:'Inter',sans-serif; font-weight:800; font-size:10px; color:#e2e8f4; text-transform:uppercase; letter-spacing:.1em; line-height:1.4; }
+.rf-label em { font-size:8.5px; color:var(--text3); font-style:italic; letter-spacing:.04em; }
+#screen-loading h1 { font-size:17px; font-weight:700; color:var(--text); letter-spacing:.02em; }
+#loading-sub { font-size:11px; color:var(--text3); font-family:var(--font-mono); }
+.spin { width:22px; height:22px; border:2.5px solid var(--border2); border-top-color:var(--bleu-vif); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ─── LAYOUT ──────────────────────────────────────────── */
+#app { display:flex; flex-direction:column; height:100vh; }
+
+/* ─── TOPBAR ──────────────────────────────────────────── */
+#topbar {
+  height:56px; background:var(--surface); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 0 0 16px; gap:0; flex-shrink:0; z-index:600;
+  box-shadow:0 2px 16px rgba(0,0,0,.4);
+}
+.tb-rf { display:flex; align-items:stretch; height:56px; flex-shrink:0; }
+.tb-rf-flag { display:flex; height:56px; }
+.tb-rf-flag span { display:block; width:12px; height:56px; }
+.tb-rf-flag span:nth-child(1) { background:#002395; }
+.tb-rf-flag span:nth-child(2) { background:#fff; }
+.tb-rf-flag span:nth-child(3) { background:#ED2939; }
+.tb-rf-text { padding:0 14px; display:flex; flex-direction:column; justify-content:center; gap:1px; border-right:1px solid var(--border); }
+.tb-rf-text strong { font-weight:800; font-size:9.5px; color:var(--text); text-transform:uppercase; letter-spacing:.1em; line-height:1.3; }
+.tb-rf-text em { font-size:8px; color:var(--text3); font-style:normal; letter-spacing:.04em; }
+
+.tb-title { padding:0 18px; display:flex; flex-direction:column; justify-content:center; gap:1px; border-right:1px solid var(--border); }
+.tb-title .t1 { font-size:14px; font-weight:800; color:var(--text); letter-spacing:.02em; text-transform:uppercase; line-height:1.2; }
+.tb-title .t2 { font-size:9px; color:var(--text3); letter-spacing:.06em; line-height:1.2; }
+
+.tb-alert-summary { display:flex; align-items:center; gap:8px; padding:0 18px; border-right:1px solid var(--border); flex-shrink:0; }
+.tb-pill {
+  display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:3px;
+  font-size:10.5px; font-weight:700; border:1px solid; cursor:default; font-family:'Inter',sans-serif;
+  transition:all .2s;
+}
+.tb-pill .pill-count { font-size:14px; font-weight:800; line-height:1; }
+.tb-pill.n0 { background:var(--n0-bg); color:var(--n0-color); border-color:var(--n0-border); }
+.tb-pill.n1 { background:var(--n1-bg); color:var(--n1-color); border-color:var(--n1-border); }
+.tb-pill.n2 { background:var(--n2-bg); color:var(--n2-color); border-color:var(--n2-border); }
+.tb-pill.n3 { background:var(--n3-bg); color:var(--n3-color); border-color:var(--n3-border); }
+.tb-pill.n4 { background:var(--n4-bg); color:var(--n4-color); border-color:var(--n4-border); }
+.tb-pill.n1.has-data, .tb-pill.n2.has-data, .tb-pill.n3.has-data, .tb-pill.n4.has-data { animation:alert-glow 2s ease-in-out infinite; }
+@keyframes alert-glow { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 10px currentColor} }
+
+.tb-flex { flex:1; }
+
+/* Horloge */
+#tb-clock { padding:0 18px; text-align:right; flex-shrink:0; border-left:1px solid var(--border); }
+#tb-clock .time { font-family:var(--font-mono); font-size:20px; font-weight:600; color:var(--text); line-height:1; }
+#tb-clock .date { font-size:9px; color:var(--text3); margin-top:2px; letter-spacing:.04em; }
+
+/* Indicateur opérateurs connectés */
+#tb-ops { display:flex; align-items:center; gap:8px; padding:0 14px; border-left:1px solid var(--border); flex-shrink:0; }
+.live-dot { width:7px; height:7px; border-radius:50%; background:var(--n0-color); animation:pulse-dot 2s ease-in-out infinite; flex-shrink:0; }
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+.ops-label { font-size:9.5px; color:var(--text3); line-height:1.3; }
+.ops-label strong { color:var(--text); font-weight:700; display:block; font-size:11px; }
+
+/* Boutons topbar */
+.tb-btn {
+  height:56px; padding:0 14px; font-size:10px; font-weight:700; cursor:pointer;
+  border:none; border-left:1px solid var(--border); background:transparent; color:var(--text3);
+  transition:all .15s; text-transform:uppercase; letter-spacing:.08em; white-space:nowrap;
+  font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px; flex-shrink:0;
+}
+.tb-btn:hover { background:var(--surface2); color:var(--text); }
+.tb-btn.primary { color:var(--bleu-vif); }
+.tb-btn.danger { color:var(--rouge); }
+
+/* ─── BODY ────────────────────────────────────────────── */
+#body { display:flex; flex:1; overflow:hidden; }
+
+/* ─── SIDEBAR GAUCHE ──────────────────────────────────── */
+#sidebar {
+  width:300px; min-width:300px; background:var(--surface); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden; flex-shrink:0;
+}
+.sb-section { border-bottom:1px solid var(--border); flex-shrink:0; }
+.sb-hdr { padding:10px 14px 8px; display:flex; align-items:center; justify-content:space-between; }
+.sb-hdr-title { font-size:8.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--text3); }
+.sb-hdr-action { font-size:9px; color:var(--bleu-vif); cursor:pointer; font-weight:600; padding:2px 6px; border-radius:2px; border:1px solid var(--border); background:transparent; transition:all .15s; }
+.sb-hdr-action:hover { background:var(--surface2); }
+
+/* Filtre niveaux */
+#level-filter { display:flex; flex-wrap:wrap; gap:5px; padding:0 14px 10px; }
+.lvl-chip {
+  display:flex; align-items:center; gap:4px; padding:3px 8px; border-radius:2px;
+  font-size:9px; font-weight:700; border:1px solid; cursor:pointer; transition:all .15s;
+  text-transform:uppercase; letter-spacing:.06em; opacity:.45;
+}
+.lvl-chip.active { opacity:1; }
+.lvl-chip:hover { opacity:.9; }
+.lvl-chip.lc0 { color:var(--n0-color); border-color:var(--n0-border); background:var(--n0-bg); }
+.lvl-chip.lc1 { color:var(--n1-color); border-color:var(--n1-border); background:var(--n1-bg); }
+.lvl-chip.lc2 { color:var(--n2-color); border-color:var(--n2-border); background:var(--n2-bg); }
+.lvl-chip.lc3 { color:var(--n3-color); border-color:var(--n3-border); background:var(--n3-bg); }
+.lvl-chip.lc4 { color:var(--n4-color); border-color:var(--n4-border); background:var(--n4-bg); }
+
+/* Liste communes actives */
+#commune-list { flex:1; overflow-y:auto; min-height:0; }
+#commune-list::-webkit-scrollbar { width:3px; }
+#commune-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.commune-item {
+  display:flex; align-items:center; gap:9px; padding:8px 14px; border-bottom:1px solid var(--border);
+  cursor:pointer; transition:background .12s;
+}
+.commune-item:hover { background:var(--surface2); }
+.commune-item.selected { background:var(--surface3); border-left:3px solid var(--bleu-vif); padding-left:11px; }
+.ci-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+.ci-nom { flex:1; font-size:11px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ci-type { font-size:8.5px; color:var(--text3); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex-shrink:0; max-width:80px; }
+.ci-time { font-size:8px; color:var(--text3); font-family:var(--font-mono); flex-shrink:0; }
+.sb-empty { padding:18px 14px; font-size:10.5px; color:var(--text3); font-style:italic; line-height:1.6; text-align:center; }
+
+/* ─── CARTE ───────────────────────────────────────────── */
+#map-area { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+#map { flex:1; width:100%; min-height:0; background:#0c1220 !important; }
+.leaflet-container { background:#0c1220 !important; }
+[data-theme="dark"] .leaflet-tile-pane { filter: brightness(0.45) saturate(0.6); }
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+  border-radius:0 !important; border:1px solid var(--border2) !important;
+  color:var(--text2) !important; background:var(--surface2) !important;
+  font-family:'Inter',sans-serif !important;
+}
+.leaflet-control-zoom-in:hover, .leaflet-control-zoom-out:hover { background:var(--surface3) !important; color:var(--text) !important; }
+.leaflet-bar { border-radius:0 !important; box-shadow:0 2px 12px rgba(0,0,0,.5) !important; }
+.leaflet-control-attribution { background:rgba(12,15,24,.85) !important; color:var(--text3) !important; font-size:8px !important; border-radius:0 !important; }
+.leaflet-control-attribution a { color:var(--text2) !important; }
+
+/* Tooltip carte */
+.map-tt {
+  background:var(--surface2) !important; border:1px solid var(--border2) !important;
+  border-top:2px solid var(--bleu-vif) !important; border-radius:0 !important;
+  color:var(--text) !important; font-family:'Inter',sans-serif !important;
+  font-size:11px !important; padding:6px 10px !important;
+  box-shadow:0 4px 20px rgba(0,0,0,.6) !important;
+}
+
+/* ─── PANEL DROIT (fiche + log) ───────────────────────── */
+#right-panel {
+  width:340px; min-width:340px; background:var(--surface); border-left:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden; flex-shrink:0;
+}
+
+/* Fiche commune */
+#fiche-panel { flex-shrink:0; border-bottom:1px solid var(--border); }
+#fiche-header {
+  padding:12px 14px 10px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
+}
+#fiche-nom { font-size:16px; font-weight:800; color:var(--text); line-height:1.1; }
+#fiche-code { font-size:9px; color:var(--text3); font-family:var(--font-mono); margin-top:2px; }
+#fiche-close { background:none; border:none; color:var(--text3); cursor:pointer; font-size:16px; line-height:1; padding:2px; transition:color .12s; flex-shrink:0; }
+#fiche-close:hover { color:var(--text); }
+
+/* Sélecteur de niveau */
+#level-selector { display:flex; gap:4px; padding:0 14px 12px; }
+.lvl-btn {
+  flex:1; padding:7px 4px; border:1.5px solid; border-radius:2px; cursor:pointer;
+  font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+  background:transparent; transition:all .15s; text-align:center; line-height:1.2;
+}
+.lvl-btn:hover { filter:brightness(1.3); }
+.lvl-btn.active { box-shadow:0 0 0 2px white; }
+.lvl-btn.b0 { color:var(--n0-color); border-color:var(--n0-border); }
+.lvl-btn.b0.active { background:var(--n0-bg); }
+.lvl-btn.b1 { color:var(--n1-color); border-color:var(--n1-border); }
+.lvl-btn.b1.active { background:var(--n1-bg); }
+.lvl-btn.b2 { color:var(--n2-color); border-color:var(--n2-border); }
+.lvl-btn.b2.active { background:var(--n2-bg); }
+.lvl-btn.b3 { color:var(--n3-color); border-color:var(--n3-border); }
+.lvl-btn.b3.active { background:var(--n3-bg); }
+.lvl-btn.b4 { color:var(--n4-color); border-color:var(--n4-border); }
+.lvl-btn.b4.active { background:var(--n4-bg); }
+
+/* Champs fiche */
+.fiche-field { padding:0 14px 10px; }
+.fiche-label { font-size:8.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text3); margin-bottom:4px; }
+.fiche-select, .fiche-input, .fiche-textarea {
+  width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  font-family:'Inter',sans-serif; font-size:11px; padding:6px 9px; border-radius:2px; outline:none;
+  transition:border-color .15s;
+}
+.fiche-select:focus, .fiche-input:focus, .fiche-textarea:focus { border-color:var(--bleu-vif); }
+.fiche-textarea { resize:vertical; min-height:64px; line-height:1.5; }
+.fiche-actions { display:flex; gap:6px; padding:0 14px 14px; }
+.btn-save {
+  flex:1; padding:8px; font-size:10.5px; font-weight:700; background:var(--bleu-vif);
+  color:#fff; border:none; cursor:pointer; border-radius:2px; letter-spacing:.04em;
+  text-transform:uppercase; transition:all .15s; font-family:'Inter',sans-serif;
+}
+.btn-save:hover { background:#1d4ed8; }
+.btn-clear {
+  padding:8px 14px; font-size:10.5px; font-weight:700; background:transparent;
+  color:var(--rouge); border:1px solid var(--rouge); cursor:pointer; border-radius:2px;
+  letter-spacing:.04em; text-transform:uppercase; transition:all .15s; font-family:'Inter',sans-serif;
+}
+.btn-clear:hover { background:rgba(220,38,38,.1); }
+
+/* État vide fiche */
+#fiche-empty { padding:24px 14px; text-align:center; }
+#fiche-empty p { font-size:11px; color:var(--text3); line-height:1.7; }
+#fiche-empty .fiche-empty-icon { font-size:32px; margin-bottom:10px; opacity:.4; }
+
+/* ─── JOURNAL D'ÉVÉNEMENTS ────────────────────────────── */
+#log-panel { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
+#log-list { flex:1; overflow-y:auto; padding:0; min-height:0; }
+#log-list::-webkit-scrollbar { width:3px; }
+#log-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.log-entry {
+  display:flex; gap:10px; padding:8px 14px; border-bottom:1px solid var(--border);
+  animation:log-in .25s ease;
+}
+@keyframes log-in { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:none} }
+.log-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; margin-top:3px; }
+.log-body { flex:1; min-width:0; }
+.log-commune { font-size:10.5px; font-weight:700; color:var(--text); }
+.log-text { font-size:9.5px; color:var(--text2); line-height:1.4; margin-top:1px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.log-meta { font-size:8.5px; color:var(--text3); margin-top:2px; display:flex; align-items:center; gap:6px; }
+.log-time { font-family:var(--font-mono); }
+.log-op { background:var(--surface3); border-radius:2px; padding:1px 5px; }
+
+/* ─── MODAL OPÉRATEUR ─────────────────────────────────── */
+#modal-op {
+  display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.75);
+  align-items:center; justify-content:center;
+}
+#modal-op.open { display:flex; }
+.modal-box {
+  background:var(--surface2); border:1px solid var(--border2); border-top:3px solid var(--bleu-vif);
+  border-radius:2px; padding:24px; width:380px; max-width:94vw; box-shadow:var(--shadow-lg);
+}
+.modal-box h3 { font-size:16px; font-weight:800; color:var(--text); margin-bottom:6px; }
+.modal-box p { font-size:11px; color:var(--text3); margin-bottom:20px; line-height:1.6; }
+.modal-input {
+  width:100%; background:var(--surface); border:1px solid var(--border2); color:var(--text);
+  font-family:'Inter',sans-serif; font-size:13px; padding:10px 12px; border-radius:2px; outline:none;
+  margin-bottom:14px; transition:border-color .15s;
+}
+.modal-input:focus { border-color:var(--bleu-vif); }
+.modal-actions { display:flex; gap:8px; }
+.modal-btn-ok {
+  flex:1; padding:10px; font-size:11px; font-weight:700; background:var(--bleu-vif); color:#fff;
+  border:none; cursor:pointer; border-radius:2px; text-transform:uppercase; letter-spacing:.04em;
+  transition:all .15s; font-family:'Inter',sans-serif;
+}
+.modal-btn-ok:hover { background:#1d4ed8; }
+
+/* ─── MODAL SYNTHÈSE PRÉFET ───────────────────────────── */
+#modal-prefet {
+  display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.8);
+  align-items:center; justify-content:center;
+}
+#modal-prefet.open { display:flex; }
+.prefet-box {
+  background:var(--surface); border:1px solid var(--border2); border-top:4px solid var(--rouge);
+  border-radius:2px; padding:28px 32px; width:640px; max-width:95vw; max-height:90vh;
+  overflow-y:auto; box-shadow:var(--shadow-lg);
+}
+.prefet-box::-webkit-scrollbar { width:3px; }
+.prefet-box::-webkit-scrollbar-thumb { background:var(--border); }
+.prefet-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; }
+.prefet-header h2 { font-size:18px; font-weight:800; color:var(--text); }
+.prefet-header .ph-sub { font-size:10px; color:var(--text3); margin-top:3px; font-style:italic; }
+.prefet-close { background:none; border:none; color:var(--text3); cursor:pointer; font-size:20px; }
+.prefet-close:hover { color:var(--text); }
+.prefet-section { margin-bottom:22px; }
+.prefet-section-title { font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--text3); margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+.prefet-stat-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:18px; }
+.pstat {
+  padding:12px 8px; text-align:center; border:1px solid; border-radius:2px;
+}
+.pstat .pstat-val { font-size:26px; font-weight:800; display:block; line-height:1; margin-bottom:3px; }
+.pstat .pstat-lbl { font-size:8px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+.pstat.ps0 { color:var(--n0-color); border-color:var(--n0-border); background:var(--n0-bg); }
+.pstat.ps1 { color:var(--n1-color); border-color:var(--n1-border); background:var(--n1-bg); }
+.pstat.ps2 { color:var(--n2-color); border-color:var(--n2-border); background:var(--n2-bg); }
+.pstat.ps3 { color:var(--n3-color); border-color:var(--n3-border); background:var(--n3-bg); }
+.pstat.ps4 { color:var(--n4-color); border-color:var(--n4-border); background:var(--n4-bg); }
+.prefet-commune-row {
+  display:flex; align-items:flex-start; gap:10px; padding:8px 10px; border-radius:2px;
+  margin-bottom:5px; border:1px solid var(--border);
+}
+.pcr-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; margin-top:3px; }
+.pcr-body { flex:1; min-width:0; }
+.pcr-nom { font-size:12px; font-weight:700; color:var(--text); }
+.pcr-type { font-size:10px; color:var(--text2); margin-top:1px; }
+.pcr-notes { font-size:9.5px; color:var(--text3); margin-top:3px; font-style:italic; line-height:1.4; }
+.pcr-time { font-size:8.5px; color:var(--text3); font-family:var(--font-mono); flex-shrink:0; }
+.prefet-print-btn {
+  width:100%; padding:11px; font-size:11px; font-weight:700; background:transparent;
+  color:var(--text2); border:1px solid var(--border2); cursor:pointer; border-radius:2px;
+  text-transform:uppercase; letter-spacing:.08em; transition:all .15s; font-family:'Inter',sans-serif;
+  margin-top:6px;
+}
+.prefet-print-btn:hover { background:var(--surface2); color:var(--text); }
+
+/* ─── BANDEAU OPÉRATEUR ACTIF ─────────────────────────── */
+#op-bar {
+  background:var(--surface2); border-bottom:1px solid var(--border);
+  padding:4px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0;
+}
+#op-bar .op-label { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:.08em; }
+#op-bar .op-name { font-size:10.5px; font-weight:700; color:var(--bleu-vif); }
+#op-bar .op-change { font-size:9px; color:var(--text3); cursor:pointer; text-decoration:underline; margin-left:4px; }
+#op-bar .op-change:hover { color:var(--text); }
+#op-bar .op-session { font-size:8.5px; font-family:var(--font-mono); color:var(--text3); margin-left:auto; }
+
+/* ─── PRINT ───────────────────────────────────────────── */
+@media print {
+  #screen-loading, #app > *:not(#print-area) { display:none !important; }
+  #print-area { display:block !important; }
+}
+#print-area { display:none; }
+
+/* ─── TOAST ───────────────────────────────────────────── */
+#toast-container { position:fixed; bottom:20px; right:20px; z-index:5000; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast {
+  background:var(--surface2); border:1px solid var(--border2); border-left:3px solid var(--bleu-vif);
+  border-radius:2px; padding:10px 16px; font-size:11px; color:var(--text);
+  box-shadow:0 4px 20px rgba(0,0,0,.5); max-width:320px; animation:toast-in .25s ease;
+  pointer-events:all; font-family:'Inter',sans-serif;
+}
+@keyframes toast-in { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:none} }
+.toast.toast-ok { border-left-color:var(--n0-color); }
+.toast.toast-warn { border-left-color:var(--n2-color); }
+.toast.toast-err { border-left-color:var(--rouge); }
+.toast.toast-sync { border-left-color:var(--bleu-vif); }
+
+/* ─── Indicateur de sync en cours ────────────────────── */
+#sync-badge {
+  position:fixed; bottom:20px; left:320px; z-index:800; display:none;
+  background:var(--surface2); border:1px solid var(--border2); border-left:2px solid var(--bleu-vif);
+  padding:5px 12px; font-size:9.5px; color:var(--text2); align-items:center; gap:7px;
+  font-family:'Inter',sans-serif; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+  box-shadow:0 2px 10px rgba(0,0,0,.4);
+}
+#sync-badge.visible { display:flex; }
+#sync-badge .sync-spin { width:8px; height:8px; border:1.5px solid rgba(255,255,255,.2); border-top-color:var(--bleu-vif); border-radius:50%; animation:spin .6s linear infinite; }
+</style>
+</head>
+<body>
+
+<!-- Chargement -->
+<div id="screen-loading">
+  <div class="rf-bloc">
+    <div class="rf-flag"><span></span><span></span><span></span></div>
+    <div class="rf-label">
+      <strong>Ministère de l'Intérieur</strong>
+      <em>Préfecture des Bouches-du-Rhône</em>
+    </div>
+  </div>
+  <h1>CELLULE DE CRISE — BDR 13</h1>
+  <div class="spin"></div>
+  <div id="loading-sub">Chargement des données géographiques…</div>
+</div>
+
+<!-- Application -->
+<div id="app" style="display:none">
+  <!-- Topbar -->
+  <div id="topbar">
+    <div class="tb-rf">
+      <div class="tb-rf-flag"><span></span><span></span><span></span></div>
+      <div class="tb-rf-text">
+        <strong>République Française</strong>
+        <em>Ministère de l'Intérieur</em>
+      </div>
+    </div>
+    <div class="tb-title">
+      <span class="t1">Cellule de crise</span>
+      <span class="t2">Préfecture des Bouches-du-Rhône — SIRACEDPC</span>
+    </div>
+
+    <div class="tb-alert-summary" id="tb-summary">
+      <div class="tb-pill n0" id="pill-n0"><span class="pill-count" id="cnt-n0">0</span><span>Veille</span></div>
+      <div class="tb-pill n1" id="pill-n1"><span class="pill-count" id="cnt-n1">0</span><span>Vigilance</span></div>
+      <div class="tb-pill n2" id="pill-n2"><span class="pill-count" id="cnt-n2">0</span><span>Alerte</span></div>
+      <div class="tb-pill n3" id="pill-n3"><span class="pill-count" id="cnt-n3">0</span><span>Urgence</span></div>
+      <div class="tb-pill n4" id="pill-n4"><span class="pill-count" id="cnt-n4">0</span><span>Catastro.</span></div>
+    </div>
+
+    <div class="tb-flex"></div>
+
+    <div id="tb-ops">
+      <div class="live-dot"></div>
+      <div class="ops-label"><strong id="ops-count">1</strong>poste(s) actif(s)</div>
+    </div>
+
+    <div id="tb-clock">
+      <div class="time" id="clock-time">--:--:--</div>
+      <div class="date" id="clock-date">--/--/----</div>
+    </div>
+
+    <button class="tb-btn primary" onclick="openPrefet()">📋 Synthèse préfet</button>
+    <button class="tb-btn" onclick="exportCSV()">⬇ Export</button>
+    <button class="tb-btn danger" onclick="confirmReset()">✕ RAZ</button>
+  </div>
+
+  <!-- Bandeau opérateur -->
+  <div id="op-bar">
+    <span class="op-label">Opérateur actif :</span>
+    <span class="op-name" id="op-name-display">—</span>
+    <span class="op-change" onclick="openModalOp()">modifier</span>
+    <span class="op-session" id="op-session-id"></span>
+  </div>
+
+  <!-- Body -->
+  <div id="body">
+    <!-- Sidebar gauche -->
+    <div id="sidebar">
+      <div class="sb-section">
+        <div class="sb-hdr">
+          <span class="sb-hdr-title">Filtre par niveau</span>
+          <button class="sb-hdr-action" onclick="toggleAllFilter()">Tous</button>
+        </div>
+        <div id="level-filter">
+          <div class="lvl-chip lc0 active" onclick="toggleFilter(0,this)">● Veille</div>
+          <div class="lvl-chip lc1 active" onclick="toggleFilter(1,this)">● Vigilance</div>
+          <div class="lvl-chip lc2 active" onclick="toggleFilter(2,this)">● Alerte</div>
+          <div class="lvl-chip lc3 active" onclick="toggleFilter(3,this)">● Urgence</div>
+          <div class="lvl-chip lc4 active" onclick="toggleFilter(4,this)">● Catastrophe</div>
+        </div>
+      </div>
+      <div class="sb-section" style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px">
+        <span class="sb-hdr-title" style="margin:0">Communes en situation</span>
+        <span id="sb-count" style="font-size:9px;color:var(--text3);font-family:var(--font-mono)">0 commune(s)</span>
+      </div>
+      <div id="commune-list">
+        <div class="sb-empty">
+          <div>🗺️</div>
+          <p>Aucune commune en situation.<br>Cliquez sur une commune sur la carte pour renseigner son niveau d'alerte.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Carte -->
+    <div id="map-area">
+      <div id="map"></div>
+    </div>
+
+    <!-- Panel droit -->
+    <div id="right-panel">
+      <!-- Fiche commune -->
+      <div id="fiche-panel">
+        <div id="fiche-empty">
+          <div class="fiche-empty-icon">📍</div>
+          <p>Cliquez sur une commune sur la carte pour consulter ou modifier sa situation.</p>
+        </div>
+        <div id="fiche-content" style="display:none">
+          <div id="fiche-header">
+            <div>
+              <div id="fiche-nom">—</div>
+              <div id="fiche-code">—</div>
+            </div>
+            <button id="fiche-close" onclick="closeFiche()">×</button>
+          </div>
+          <div id="level-selector">
+            <button class="lvl-btn b0" onclick="setLevel(0)">Veille</button>
+            <button class="lvl-btn b1" onclick="setLevel(1)">Vigil.</button>
+            <button class="lvl-btn b2" onclick="setLevel(2)">Alerte</button>
+            <button class="lvl-btn b3" onclick="setLevel(3)">Urgence</button>
+            <button class="lvl-btn b4" onclick="setLevel(4)">Catast.</button>
+          </div>
+          <div class="fiche-field">
+            <div class="fiche-label">Type d'événement</div>
+            <select id="f-type" class="fiche-select">
+              <option value="">— Sélectionner —</option>
+              <optgroup label="Risques naturels">
+                <option>Inondation</option>
+                <option>Feu de forêt</option>
+                <option>Mouvement de terrain</option>
+                <option>Séisme</option>
+                <option>Submersion marine</option>
+                <option>Tempête / vent violent</option>
+                <option>Grand froid / canicule</option>
+              </optgroup>
+              <optgroup label="Risques technologiques">
+                <option>Accident industriel / ICPE</option>
+                <option>NaTech (industriel + naturel)</option>
+                <option>Transport matières dangereuses</option>
+                <option>Pollution atmosphérique</option>
+                <option>Rupture de barrage</option>
+              </optgroup>
+              <optgroup label="Sécurité publique">
+                <option>Trouble à l'ordre public</option>
+                <option>Accident de transport (masse)</option>
+                <option>Attentat / menace terroriste</option>
+                <option>Pandémie / crise sanitaire</option>
+              </optgroup>
+              <optgroup label="Infrastructure">
+                <option>Coupure réseau électrique (RTE)</option>
+                <option>Coupure eau potable</option>
+                <option>Réseau routier coupé</option>
+                <option>Réseau ferroviaire perturbé</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="fiche-field">
+            <div class="fiche-label">Situation — note opérateur</div>
+            <textarea id="f-notes" class="fiche-textarea" placeholder="Description de la situation, actions en cours, points d'attention…"></textarea>
+          </div>
+          <div class="fiche-field">
+            <div class="fiche-label">Moyens engagés</div>
+            <input type="text" id="f-moyens" class="fiche-input" placeholder="ex : SDIS 13 — 3 engins, SAMU, gendarmerie…">
+          </div>
+          <div class="fiche-actions">
+            <button class="btn-save" onclick="saveFiche()">✓ Enregistrer</button>
+            <button class="btn-clear" onclick="clearFiche()">✕ Clore</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Journal événements -->
+      <div id="log-panel">
+        <div class="sb-section">
+          <div class="sb-hdr">
+            <span class="sb-hdr-title">Journal des événements</span>
+            <button class="sb-hdr-action" onclick="clearLog()">Vider</button>
+          </div>
+        </div>
+        <div id="log-list">
+          <div class="sb-empty" style="padding:14px">
+            <p>Le journal enregistre toutes les mises à jour de situation.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal opérateur -->
+<div id="modal-op" onclick="e=>e.stopPropagation()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <h3>Identification opérateur</h3>
+    <p>Saisissez votre nom ou indicatif pour que vos actions soient tracées dans le journal de crise.</p>
+    <input class="modal-input" id="op-input" type="text" placeholder="Prénom NOM ou indicatif (ex : SDIS-OPS-1)" maxlength="40" onkeydown="if(event.key==='Enter')confirmOp()">
+    <div class="modal-actions">
+      <button class="modal-btn-ok" onclick="confirmOp()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal synthèse préfet -->
+<div id="modal-prefet" onclick="closePrefet()">
+  <div class="prefet-box" onclick="event.stopPropagation()">
+    <div class="prefet-header">
+      <div>
+        <h2>Synthèse pour M. le Préfet</h2>
+        <div class="ph-sub" id="prefet-date-line">—</div>
+      </div>
+      <button class="prefet-close" onclick="closePrefet()">×</button>
+    </div>
+
+    <div class="prefet-section">
+      <div class="prefet-section-title">État général du département</div>
+      <div class="prefet-stat-grid">
+        <div class="pstat ps0"><span class="pstat-val" id="ps-n0">0</span><span class="pstat-lbl">Veille</span></div>
+        <div class="pstat ps1"><span class="pstat-val" id="ps-n1">0</span><span class="pstat-lbl">Vigilance</span></div>
+        <div class="pstat ps2"><span class="pstat-val" id="ps-n2">0</span><span class="pstat-lbl">Alerte</span></div>
+        <div class="pstat ps3"><span class="pstat-val" id="ps-n3">0</span><span class="pstat-lbl">Urgence</span></div>
+        <div class="pstat ps4"><span class="pstat-val" id="ps-n4">0</span><span class="pstat-lbl">Catastrophe</span></div>
+      </div>
+    </div>
+
+    <div class="prefet-section" id="prefet-communes-section">
+      <div class="prefet-section-title">Communes en situation (par ordre de gravité)</div>
+      <div id="prefet-communes-list"></div>
+    </div>
+
+    <div class="prefet-section">
+      <div class="prefet-section-title">Dernières actions consignées</div>
+      <div id="prefet-log-recent"></div>
+    </div>
+
+    <button class="prefet-print-btn" onclick="printSynthese()">🖨 Imprimer la synthèse</button>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Sync badge -->
+<div id="sync-badge"><div class="sync-spin"></div> Synchronisation…</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   CONSTANTES NIVEAUX
+   ══════════════════════════════════════════════════════════ */
+const LEVELS = [
+  { id:0, label:'Veille',       color:'#22c55e', bg:'#052e16', border:'#166534', mapFill:'#22c55e', mapStroke:'#166534' },
+  { id:1, label:'Vigilance',    color:'#facc15', bg:'#1c1400', border:'#713f12', mapFill:'#facc15', mapStroke:'#713f12' },
+  { id:2, label:'Alerte',       color:'#f97316', bg:'#1c0a00', border:'#7c2d12', mapFill:'#f97316', mapStroke:'#7c2d12' },
+  { id:3, label:'Urgence',      color:'#ef4444', bg:'#1c0000', border:'#7f1d1d', mapFill:'#ef4444', mapStroke:'#7f1d1d' },
+  { id:4, label:'Catastrophe',  color:'#c084fc', bg:'#180a2e', border:'#581c87', mapFill:'#c084fc', mapStroke:'#581c87' },
+];
+
+const STORAGE_KEY = 'crise_bdr_v1';
+const LOG_KEY     = 'crise_bdr_log_v1';
+const OP_KEY      = 'crise_bdr_operator';
+
+/* ══════════════════════════════════════════════════════════
+   ÉTAT
+   ══════════════════════════════════════════════════════════ */
+let geoData       = null;
+let map           = null;
+let geojsonLayer  = null;
+let featureLayers = {};   // code → layer
+let situations    = {};   // code → {level, type, notes, moyens, op, ts}
+let eventLog      = [];   // [{ts, commune, code, level, type, notes, op}]
+let selectedCode  = null;
+let filterLevels  = new Set([0,1,2,3,4]);
+let currentOp     = '';
+let sessionId     = '';
+let connectedOps  = 1;
+
+/* BroadcastChannel pour sync multi-onglets */
+let bc = null;
+try { bc = new BroadcastChannel('crise_bdr_channel'); } catch(e) {}
+
+/* ══════════════════════════════════════════════════════════
+   INITIALISATION
+   ══════════════════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', async () => {
+  // Session ID unique par onglet
+  sessionId = 'OP-' + Math.random().toString(36).slice(2,6).toUpperCase();
+  document.getElementById('op-session-id').textContent = 'Session : ' + sessionId;
+
+  // Charger données persistées
+  loadFromStorage();
+  startClock();
+
+  try {
+    document.getElementById('loading-sub').textContent = 'Chargement contours communes BDR…';
+    geoData = await fetchJSON(
+      'https://geo.api.gouv.fr/departements/13/communes?geometry=contour&format=geojson&fields=nom,code'
+    );
+    geoData.features = geoData.features.filter(f => f.geometry && f.properties.nom && f.properties.code);
+
+    document.getElementById('screen-loading').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+
+    initMap();
+    renderAll();
+
+    // Demander identification si pas déjà fait
+    const savedOp = localStorage.getItem(OP_KEY) || '';
+    if(savedOp) {
+      currentOp = savedOp;
+      document.getElementById('op-name-display').textContent = savedOp;
+    } else {
+      setTimeout(() => openModalOp(), 400);
+    }
+
+    // BroadcastChannel — écouter les mises à jour des autres onglets
+    if(bc) {
+      bc.onmessage = (evt) => handleBCMessage(evt.data);
+      // Annoncer sa présence
+      bcSend({ type:'hello', sessionId, op: currentOp });
+    }
+
+  } catch(e) {
+    document.getElementById('loading-sub').textContent = '⚠ Erreur : ' + e.message;
+    console.error(e);
+  }
+});
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+/* ══════════════════════════════════════════════════════════
+   CARTE
+   ══════════════════════════════════════════════════════════ */
+function initMap() {
+  map = L.map('map', { zoomControl:true, attributionControl:true });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    attribution:'© OpenStreetMap | © CARTO',
+    subdomains:'abcd', maxZoom:18
+  }).addTo(map);
+
+  geojsonLayer = L.geoJSON(geoData, {
+    style: featureStyle,
+    onEachFeature: (feature, layer) => {
+      const code = feature.properties.code;
+      featureLayers[code] = layer;
+
+      layer.on('click', () => openFiche(feature));
+
+      layer.on('mouseover', function(e) {
+        const sit = situations[code];
+        const nom = feature.properties.nom;
+        const lvl = sit ? LEVELS[sit.level] : null;
+        let html = `<strong style="font-size:12px">${nom}</strong><br><span style="font-size:9px;color:#94a8c7">${code}</span>`;
+        if(sit) html += `<br><span style="color:${lvl.color};font-weight:700;font-size:10px">▪ ${lvl.label}</span>`;
+        if(sit?.type) html += ` — ${sit.type}`;
+        layer.bindTooltip(html, { className:'map-tt', sticky:true, direction:'top' }).openTooltip(e.latlng);
+        if(!sit) layer.setStyle({ fillOpacity:0.55, weight:1.8 });
+      });
+      layer.on('mouseout', function() {
+        layer.unbindTooltip();
+        layer.setStyle(featureStyle(feature));
+      });
+    }
+  }).addTo(map);
+
+  map.fitBounds(geojsonLayer.getBounds(), { padding:[20,20] });
+}
+
+function featureStyle(feature) {
+  const code = feature?.properties?.code;
+  const sit = situations[code];
+  if(!sit || sit.level === undefined) {
+    return { fillColor:'#1e2d4a', fillOpacity:0.65, color:'#2a3855', weight:0.8 };
+  }
+  const lvl = LEVELS[sit.level];
+  return { fillColor:lvl.mapFill, fillOpacity:0.72, color:lvl.mapStroke, weight:2 };
+}
+
+function refreshMapLayer(code) {
+  const layer = featureLayers[code];
+  if(!layer) return;
+  const feature = geoData?.features.find(f => f.properties.code === code);
+  if(feature) layer.setStyle(featureStyle(feature));
+}
+
+/* ══════════════════════════════════════════════════════════
+   FICHE COMMUNE
+   ══════════════════════════════════════════════════════════ */
+let ficheLevel = null;
+
+function openFiche(feature) {
+  const code = feature.properties.code;
+  const nom  = feature.properties.nom;
+  selectedCode = code;
+
+  document.getElementById('fiche-empty').style.display = 'none';
+  document.getElementById('fiche-content').style.display = '';
+  document.getElementById('fiche-nom').textContent = nom;
+  document.getElementById('fiche-code').textContent = code + ' — ' + (feature.properties.departement || 'BDR');
+
+  const sit = situations[code] || {};
+  ficheLevel = sit.level ?? null;
+
+  document.getElementById('f-type').value   = sit.type   || '';
+  document.getElementById('f-notes').value  = sit.notes  || '';
+  document.getElementById('f-moyens').value = sit.moyens || '';
+
+  updateLevelBtns();
+
+  // Highlight sur la carte
+  Object.values(featureLayers).forEach(l => {
+    if(l.feature?.properties?.code === code) {
+      l.bringToFront();
+    }
+  });
+
+  // Scroll dans la liste sidebar
+  highlightSidebarItem(code);
+}
+
+function closeFiche() {
+  selectedCode = null;
+  ficheLevel = null;
+  document.getElementById('fiche-empty').style.display = '';
+  document.getElementById('fiche-content').style.display = 'none';
+}
+
+function setLevel(n) {
+  ficheLevel = n;
+  updateLevelBtns();
+}
+
+function updateLevelBtns() {
+  document.querySelectorAll('.lvl-btn').forEach((b, i) => {
+    b.classList.toggle('active', i === ficheLevel);
+  });
+}
+
+function saveFiche() {
+  if(!selectedCode) return;
+  if(ficheLevel === null) { showToast('Sélectionnez un niveau d\'alerte.', 'warn'); return; }
+
+  const code   = selectedCode;
+  const nom    = geoData.features.find(f => f.properties.code === code)?.properties.nom || code;
+  const type   = document.getElementById('f-type').value;
+  const notes  = document.getElementById('f-notes').value.trim();
+  const moyens = document.getElementById('f-moyens').value.trim();
+  const ts     = Date.now();
+  const op     = currentOp || sessionId;
+
+  situations[code] = { level:ficheLevel, type, notes, moyens, op, ts };
+
+  // Journal
+  const entry = { ts, commune:nom, code, level:ficheLevel, type, notes, moyens, op };
+  eventLog.unshift(entry);
+  if(eventLog.length > 200) eventLog.splice(200);
+
+  saveToStorage();
+  bcSend({ type:'update', situations, logEntry:entry, sessionId, op });
+  renderAll();
+  showSyncBadge();
+  showToast(`✓ ${nom} — ${LEVELS[ficheLevel].label} enregistré`, 'ok');
+}
+
+function clearFiche() {
+  if(!selectedCode) return;
+  const code = selectedCode;
+  const nom  = geoData.features.find(f => f.properties.code === code)?.properties.nom || code;
+  if(!confirm(`Clore la situation pour ${nom} ?`)) return;
+
+  const ts = Date.now();
+  const op = currentOp || sessionId;
+  const entry = { ts, commune:nom, code, level:-1, type:'Clôture', notes:'Situation terminée.', moyens:'', op };
+  eventLog.unshift(entry);
+
+  delete situations[code];
+  saveToStorage();
+  bcSend({ type:'clear', code, logEntry:entry, sessionId, op });
+  refreshMapLayer(code);
+  closeFiche();
+  renderAll();
+  showToast(`${nom} — situation clôturée`, 'ok');
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDU INTERFACE
+   ══════════════════════════════════════════════════════════ */
+function renderAll() {
+  renderTopbarSummary();
+  renderSidebarList();
+  renderLog();
+  // Rafraîchir la carte
+  if(geojsonLayer) {
+    geojsonLayer.setStyle(featureStyle);
+  }
+}
+
+function renderTopbarSummary() {
+  const counts = [0,0,0,0,0];
+  Object.values(situations).forEach(s => { if(s.level >= 0 && s.level <= 4) counts[s.level]++; });
+  counts.forEach((n,i) => {
+    document.getElementById('cnt-n' + i).textContent = n;
+    const pill = document.getElementById('pill-n' + i);
+    pill.classList.toggle('has-data', n > 0);
+  });
+}
+
+function renderSidebarList() {
+  const container = document.getElementById('commune-list');
+  const entries = Object.entries(situations)
+    .filter(([,s]) => filterLevels.has(s.level))
+    .sort(([,a],[,b]) => b.level - a.level || b.ts - a.ts);
+
+  document.getElementById('sb-count').textContent = Object.keys(situations).length + ' commune(s)';
+
+  if(!entries.length) {
+    container.innerHTML = '<div class="sb-empty"><div>🗺️</div><p>Aucune commune en situation correspondant aux filtres actifs.</p></div>';
+    return;
+  }
+
+  container.innerHTML = entries.map(([code, sit]) => {
+    const nom = geoData?.features.find(f => f.properties.code === code)?.properties.nom || code;
+    const lvl = LEVELS[sit.level];
+    const time = new Date(sit.ts).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+    const isSelected = code === selectedCode;
+    return `<div class="commune-item${isSelected?' selected':''}" onclick="openFicheByCode('${code}')" data-code="${code}">
+      <div class="ci-dot" style="background:${lvl.color}"></div>
+      <div class="ci-nom">${nom}</div>
+      <div class="ci-type">${sit.type||'—'}</div>
+      <div class="ci-time">${time}</div>
+    </div>`;
+  }).join('');
+}
+
+function openFicheByCode(code) {
+  const feature = geoData?.features.find(f => f.properties.code === code);
+  if(feature) {
+    openFiche(feature);
+    const layer = featureLayers[code];
+    if(layer) {
+      const bounds = layer.getBounds();
+      map.flyToBounds(bounds, { padding:[100,100], maxZoom:12, duration:0.7 });
+    }
+  }
+}
+
+function highlightSidebarItem(code) {
+  document.querySelectorAll('.commune-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.code === code);
+  });
+}
+
+function renderLog() {
+  const container = document.getElementById('log-list');
+  if(!eventLog.length) {
+    container.innerHTML = '<div class="sb-empty" style="padding:14px"><p>Le journal enregistre toutes les mises à jour de situation.</p></div>';
+    return;
+  }
+  container.innerHTML = eventLog.slice(0, 80).map(e => {
+    const lvl = e.level >= 0 ? LEVELS[e.level] : null;
+    const color = lvl ? lvl.color : '#5a7098';
+    const time = new Date(e.ts).toLocaleTimeString('fr-FR');
+    const action = e.level === -1
+      ? 'Situation clôturée'
+      : `${lvl?.label || ''}${e.type ? ' — ' + e.type : ''}`;
+    return `<div class="log-entry">
+      <div class="log-dot" style="background:${color}"></div>
+      <div class="log-body">
+        <div class="log-commune">${e.commune}</div>
+        <div class="log-text">${action}${e.notes ? ' · ' + e.notes.slice(0,80) : ''}</div>
+        <div class="log-meta">
+          <span class="log-time">${time}</span>
+          <span class="log-op">${e.op}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   FILTRES SIDEBAR
+   ══════════════════════════════════════════════════════════ */
+function toggleFilter(level, el) {
+  if(filterLevels.has(level)) filterLevels.delete(level);
+  else filterLevels.add(level);
+  el.classList.toggle('active', filterLevels.has(level));
+  renderSidebarList();
+}
+
+function toggleAllFilter() {
+  const allOn = filterLevels.size === 5;
+  if(allOn) {
+    filterLevels.clear();
+    document.querySelectorAll('.lvl-chip').forEach(c => c.classList.remove('active'));
+  } else {
+    [0,1,2,3,4].forEach(i => filterLevels.add(i));
+    document.querySelectorAll('.lvl-chip').forEach(c => c.classList.add('active'));
+  }
+  renderSidebarList();
+}
+
+/* ══════════════════════════════════════════════════════════
+   SYNTHÈSE PRÉFET
+   ══════════════════════════════════════════════════════════ */
+function openPrefet() {
+  const now = new Date();
+  document.getElementById('prefet-date-line').textContent =
+    'Au ' + now.toLocaleDateString('fr-FR', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) +
+    ' à ' + now.toLocaleTimeString('fr-FR');
+
+  const counts = [0,0,0,0,0];
+  Object.values(situations).forEach(s => { if(s.level >= 0) counts[s.level]++; });
+  counts.forEach((n,i) => document.getElementById('ps-n' + i).textContent = n);
+
+  // Communes triées par gravité décroissante
+  const sorted = Object.entries(situations)
+    .filter(([,s]) => s.level >= 0)
+    .sort(([,a],[,b]) => b.level - a.level || b.ts - a.ts);
+
+  const listEl = document.getElementById('prefet-communes-list');
+  if(!sorted.length) {
+    listEl.innerHTML = '<p style="font-size:11px;color:var(--text3);font-style:italic">Aucune commune en situation active.</p>';
+  } else {
+    listEl.innerHTML = sorted.map(([code, sit]) => {
+      const nom = geoData?.features.find(f => f.properties.code === code)?.properties.nom || code;
+      const lvl = LEVELS[sit.level];
+      const time = new Date(sit.ts).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+      return `<div class="prefet-commune-row">
+        <div class="pcr-dot" style="background:${lvl.color}"></div>
+        <div class="pcr-body">
+          <div class="pcr-nom">${nom} <span style="font-size:9px;color:${lvl.color};font-weight:700">[${lvl.label.toUpperCase()}]</span></div>
+          <div class="pcr-type">${sit.type || 'Type non renseigné'}${sit.moyens ? ' · ' + sit.moyens : ''}</div>
+          ${sit.notes ? `<div class="pcr-notes">${sit.notes}</div>` : ''}
+        </div>
+        <div class="pcr-time">${time}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Dernières entrées journal
+  const logEl = document.getElementById('prefet-log-recent');
+  const recent = eventLog.slice(0, 8);
+  if(!recent.length) {
+    logEl.innerHTML = '<p style="font-size:11px;color:var(--text3);font-style:italic">Aucune action consignée.</p>';
+  } else {
+    logEl.innerHTML = recent.map(e => {
+      const lvl = e.level >= 0 ? LEVELS[e.level] : null;
+      const color = lvl ? lvl.color : '#5a7098';
+      const time = new Date(e.ts).toLocaleTimeString('fr-FR');
+      return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+        <div style="width:7px;height:7px;border-radius:2px;background:${color};flex-shrink:0;margin-top:4px"></div>
+        <div style="flex:1;min-width:0">
+          <span style="font-size:11px;font-weight:700;color:var(--text)">${e.commune}</span>
+          <span style="font-size:10px;color:var(--text2)"> — ${e.level === -1 ? 'Clôturée' : (lvl?.label || '')}${e.type ? ' / ' + e.type : ''}</span>
+          <div style="font-size:9px;color:var(--text3);font-family:var(--font-mono);margin-top:1px">${time} · ${e.op}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('modal-prefet').classList.add('open');
+}
+
+function closePrefet() {
+  document.getElementById('modal-prefet').classList.remove('open');
+}
+
+function printSynthese() {
+  window.print();
+}
+
+/* ══════════════════════════════════════════════════════════
+   OPÉRATEUR
+   ══════════════════════════════════════════════════════════ */
+function openModalOp() {
+  const modal = document.getElementById('modal-op');
+  document.getElementById('op-input').value = currentOp || '';
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('op-input').focus(), 100);
+}
+
+function confirmOp() {
+  const val = document.getElementById('op-input').value.trim();
+  if(!val) { showToast('Saisissez votre nom ou indicatif.', 'warn'); return; }
+  currentOp = val;
+  document.getElementById('op-name-display').textContent = val;
+  localStorage.setItem(OP_KEY, val);
+  document.getElementById('modal-op').classList.remove('open');
+  bcSend({ type:'hello', sessionId, op: currentOp });
+  showToast('Bienvenue, ' + val, 'ok');
+}
+
+/* ══════════════════════════════════════════════════════════
+   BROADCAST CHANNEL — SYNC TEMPS RÉEL
+   ══════════════════════════════════════════════════════════ */
+function bcSend(data) {
+  if(bc) try { bc.postMessage(data); } catch(e) {}
+}
+
+const activeSessions = new Set();
+
+function handleBCMessage(data) {
+  if(data.sessionId === sessionId) return; // ignorer ses propres messages
+
+  if(data.type === 'hello') {
+    activeSessions.add(data.sessionId);
+    document.getElementById('ops-count').textContent = activeSessions.size + 1;
+    showToast('📡 ' + (data.op || data.sessionId) + ' a rejoint la salle de crise', 'sync');
+    // Répondre avec les données actuelles
+    bcSend({ type:'sync', situations, log:eventLog.slice(0,50), sessionId, op:currentOp });
+  } else if(data.type === 'sync') {
+    activeSessions.add(data.sessionId);
+    document.getElementById('ops-count').textContent = activeSessions.size + 1;
+    // Merger les situations (prendre la plus récente)
+    let changed = false;
+    Object.entries(data.situations || {}).forEach(([code, sit]) => {
+      if(!situations[code] || sit.ts > situations[code].ts) {
+        situations[code] = sit; changed = true;
+      }
+    });
+    // Merger le log
+    if(data.log) {
+      data.log.forEach(e => {
+        if(!eventLog.find(x => x.ts === e.ts && x.code === e.code)) {
+          eventLog.push(e);
+        }
+      });
+      eventLog.sort((a,b) => b.ts - a.ts);
+      if(eventLog.length > 200) eventLog.splice(200);
+    }
+    if(changed) { saveToStorage(); renderAll(); showSyncBadge(); }
+  } else if(data.type === 'update') {
+    activeSessions.add(data.sessionId);
+    document.getElementById('ops-count').textContent = activeSessions.size + 1;
+    // Appliquer les mises à jour
+    Object.entries(data.situations || {}).forEach(([code, sit]) => {
+      if(!situations[code] || sit.ts > (situations[code]?.ts || 0)) {
+        situations[code] = sit;
+      }
+    });
+    if(data.logEntry) {
+      if(!eventLog.find(x => x.ts === data.logEntry.ts && x.code === data.logEntry.code)) {
+        eventLog.unshift(data.logEntry);
+      }
+    }
+    saveToStorage(); renderAll(); showSyncBadge();
+    const nom = data.logEntry?.commune || '?';
+    const lvl = data.logEntry?.level >= 0 ? LEVELS[data.logEntry.level]?.label : 'Clôturée';
+    showToast(`📡 [${data.op}] ${nom} → ${lvl}`, 'sync');
+  } else if(data.type === 'clear') {
+    delete situations[data.code];
+    if(data.logEntry) eventLog.unshift(data.logEntry);
+    saveToStorage(); renderAll(); showSyncBadge();
+  } else if(data.type === 'reset') {
+    situations = {}; eventLog = [];
+    saveToStorage(); renderAll();
+    showToast('📡 Remise à zéro par ' + (data.op || data.sessionId), 'warn');
+  } else if(data.type === 'bye') {
+    activeSessions.delete(data.sessionId);
+    document.getElementById('ops-count').textContent = Math.max(1, activeSessions.size + 1);
+  }
+}
+
+window.addEventListener('beforeunload', () => {
+  bcSend({ type:'bye', sessionId });
+});
+
+/* ══════════════════════════════════════════════════════════
+   PERSISTANCE LOCALSTORAGE
+   ══════════════════════════════════════════════════════════ */
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(situations));
+    localStorage.setItem(LOG_KEY, JSON.stringify(eventLog.slice(0,200)));
+  } catch(e) {}
+}
+
+function loadFromStorage() {
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    if(s) situations = JSON.parse(s);
+    const l = localStorage.getItem(LOG_KEY);
+    if(l) eventLog = JSON.parse(l);
+  } catch(e) {}
+}
+
+/* ══════════════════════════════════════════════════════════
+   EXPORT CSV
+   ══════════════════════════════════════════════════════════ */
+function exportCSV() {
+  const lines = ['Code INSEE;Commune;Niveau;Type événement;Notes;Moyens engagés;Opérateur;Horodatage'];
+  const now = new Date();
+  Object.entries(situations).forEach(([code, sit]) => {
+    const nom  = geoData?.features.find(f => f.properties.code === code)?.properties.nom || code;
+    const lvl  = LEVELS[sit.level]?.label || '';
+    const ts   = new Date(sit.ts).toLocaleString('fr-FR');
+    lines.push([code, nom, lvl, sit.type||'', (sit.notes||'').replace(/;/g,''), (sit.moyens||'').replace(/;/g,''), sit.op||'', ts].join(';'));
+  });
+  const csv  = '\uFEFF' + lines.join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'crise_bdr_' + now.toISOString().slice(0,16).replace('T','_') + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Export CSV téléchargé', 'ok');
+}
+
+/* ══════════════════════════════════════════════════════════
+   RAZ
+   ══════════════════════════════════════════════════════════ */
+function confirmReset() {
+  if(!confirm('Remettre à zéro TOUTES les situations et le journal ?\nCette action sera propagée à tous les postes connectés.')) return;
+  situations = {}; eventLog = [];
+  saveToStorage();
+  renderAll();
+  closeFiche();
+  bcSend({ type:'reset', sessionId, op: currentOp || sessionId });
+  showToast('Remise à zéro effectuée', 'warn');
+}
+
+function clearLog() {
+  if(!confirm('Vider le journal des événements ?')) return;
+  eventLog = [];
+  saveToStorage();
+  renderLog();
+}
+
+/* ══════════════════════════════════════════════════════════
+   HORLOGE
+   ══════════════════════════════════════════════════════════ */
+function startClock() {
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock-time').textContent = now.toLocaleTimeString('fr-FR');
+    document.getElementById('clock-date').textContent = now.toLocaleDateString('fr-FR', {weekday:'short', day:'2-digit', month:'2-digit', year:'numeric'});
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ══════════════════════════════════════════════════════════
+   TOAST & SYNC BADGE
+   ══════════════════════════════════════════════════════════ */
+function showToast(msg, type = 'ok') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3200);
+}
+
+let syncBadgeTimer = null;
+function showSyncBadge() {
+  const b = document.getElementById('sync-badge');
+  b.classList.add('visible');
+  if(syncBadgeTimer) clearTimeout(syncBadgeTimer);
+  syncBadgeTimer = setTimeout(() => b.classList.remove('visible'), 1500);
+}
+</script>
+</body>
+</html>

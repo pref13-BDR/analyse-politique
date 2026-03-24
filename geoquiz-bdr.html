@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Géo-Quiz — Communes des Bouches-du-Rhône</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Marianne:wght@400;500;700;800&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════
+   GÉO-QUIZ — BOUCHES-DU-RHÔNE
+   Charte graphique préfecture / jeu
+   ═══════════════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bleu:#003189;
+  --bleu-light:#1a4aad;
+  --rouge:#E1000F;
+  --blanc:#fff;
+  --gris-bg:#f0f2f5;
+  --gris-card:#e4e8f0;
+  --gris-border:#c8d2e0;
+  --text:#1a1a2e;
+  --muted:#6b7a99;
+  --ok:#15803d;
+  --ok-bg:#dcfce7;
+  --err:#b91c1c;
+  --err-bg:#fee2e2;
+  --warn:#b45309;
+  --warn-bg:#fef3c7;
+  --gold:#d97706;
+  --map-default:#c8d9ef;
+  --map-default-stroke:#8aa8d0;
+  --map-found:#16a34a;
+  --map-found-stroke:#166534;
+  --map-wrong:#dc2626;
+  --map-target:#f59e0b;
+  --shadow: 0 4px 24px rgba(0,32,100,.13);
+  --shadow-lg: 0 8px 40px rgba(0,32,100,.22);
+}
+
+html, body {
+  height:100%; font-family:'Marianne', Arial, sans-serif;
+  background:var(--gris-bg); color:var(--text); overflow:hidden;
+}
+
+/* ─── Écran de chargement ────────────────────────────────── */
+#screen-loading {
+  position:fixed; inset:0; z-index:9000;
+  background:var(--bleu);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px;
+}
+.rf-bloc {
+  display:flex; align-items:stretch; background:#fff;
+  height:64px; box-shadow:0 4px 24px rgba(0,0,0,.35);
+}
+.rf-flag { display:flex; height:64px; }
+.rf-flag span { display:block; width:20px; height:64px; }
+.rf-flag span:nth-child(1) { background:#002395; }
+.rf-flag span:nth-child(2) { background:#fff; }
+.rf-flag span:nth-child(3) { background:#ED2939; }
+.rf-label { padding:0 16px; display:flex; flex-direction:column; justify-content:center; gap:2px; }
+.rf-label strong { font-family:'Marianne',Arial,sans-serif; font-weight:800; font-size:10px; color:#161616; text-transform:uppercase; letter-spacing:.06em; line-height:1.4; }
+.rf-label em { font-style:italic; font-size:8px; color:#666; }
+#screen-loading h1 { font-family:'Marianne',Arial,sans-serif; font-size:18px; font-weight:800; color:#fff; text-align:center; letter-spacing:.01em; }
+#loading-sub { font-size:11px; color:rgba(255,255,255,.6); font-family:Arial,sans-serif; }
+.spin { width:24px; height:24px; border:3px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:spin .75s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ─── Écran d'accueil ────────────────────────────────────── */
+#screen-home {
+  position:fixed; inset:0; z-index:8000;
+  background:var(--bleu);
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  gap:0;
+}
+#screen-home.active { display:flex; }
+.home-card {
+  background:#fff; width:520px; max-width:94vw;
+  border-top:4px solid var(--rouge); box-shadow:var(--shadow-lg);
+  padding:32px 36px 28px;
+}
+.home-logo { display:flex; align-items:center; gap:14px; margin-bottom:24px; }
+.home-logo .flag-mini { display:flex; height:36px; }
+.home-logo .flag-mini span { display:block; width:12px; height:36px; }
+.home-logo .flag-mini span:nth-child(1) { background:#002395; }
+.home-logo .flag-mini span:nth-child(2) { background:#fff; border-left:1px solid #e0e0e0; border-right:1px solid #e0e0e0; }
+.home-logo .flag-mini span:nth-child(3) { background:#ED2939; }
+.home-logo-text { display:flex; flex-direction:column; }
+.home-logo-text strong { font-family:'Marianne',Arial,sans-serif; font-size:11px; font-weight:800; color:var(--bleu); text-transform:uppercase; letter-spacing:.06em; line-height:1.4; }
+.home-logo-text em { font-size:9px; color:var(--muted); font-style:italic; }
+.home-card h2 { font-family:'Marianne',Arial,sans-serif; font-size:22px; font-weight:800; color:var(--text); margin-bottom:6px; line-height:1.2; }
+.home-card p { font-size:12px; color:var(--muted); line-height:1.6; margin-bottom:22px; }
+.mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:22px; }
+.mode-btn {
+  border:2px solid var(--gris-border); background:var(--gris-bg); border-radius:4px;
+  padding:14px 12px; cursor:pointer; transition:all .17s; text-align:left;
+  display:flex; flex-direction:column; gap:4px;
+}
+.mode-btn:hover { border-color:var(--bleu); background:var(--blanc); }
+.mode-btn.selected { border-color:var(--bleu); background:#e8eeff; box-shadow:0 0 0 2px var(--bleu); }
+.mode-btn .mode-icon { font-size:20px; margin-bottom:2px; }
+.mode-btn .mode-name { font-size:12px; font-weight:700; color:var(--text); }
+.mode-btn .mode-desc { font-size:10px; color:var(--muted); line-height:1.4; }
+.home-start-btn {
+  width:100%; padding:13px; font-size:14px; font-weight:800;
+  background:var(--bleu); color:#fff; border:none; cursor:pointer;
+  border-radius:3px; letter-spacing:.04em; text-transform:uppercase;
+  transition:all .15s; font-family:'Marianne',Arial,sans-serif;
+}
+.home-start-btn:hover { background:#1a4aad; transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,49,137,.35); }
+.home-start-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+.home-stats-note { margin-top:14px; font-size:10px; color:var(--muted); text-align:center; font-style:italic; }
+
+/* ─── Layout principal ───────────────────────────────────── */
+#app { display:none; flex-direction:column; height:100vh; }
+#app.active { display:flex; }
+
+/* ─── Topbar ─────────────────────────────────────────────── */
+#topbar {
+  height:52px; background:#fff; border-bottom:3px solid var(--bleu);
+  display:flex; align-items:center; padding:0 14px; gap:12px;
+  box-shadow:0 2px 8px rgba(0,32,100,.1); flex-shrink:0; z-index:600;
+}
+.tb-brand { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.tb-flag { display:flex; height:32px; }
+.tb-flag span { display:block; width:10px; height:32px; }
+.tb-flag span:nth-child(1) { background:#002395; }
+.tb-flag span:nth-child(2) { background:#fff; border-left:1px solid #ddd; border-right:1px solid #ddd; }
+.tb-flag span:nth-child(3) { background:#ED2939; }
+.tb-title { display:flex; flex-direction:column; }
+.tb-title strong { font-size:12px; font-weight:800; color:var(--bleu); text-transform:uppercase; letter-spacing:.04em; line-height:1.2; }
+.tb-title span { font-size:9.5px; color:var(--muted); line-height:1.2; }
+.tb-sep { width:1px; height:28px; background:var(--gris-border); flex-shrink:0; }
+.tb-flex { flex:1; }
+
+/* Score pills */
+.score-bar { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.score-pill {
+  display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:30px;
+  font-size:11px; font-weight:700; border:1.5px solid; font-family:'Marianne',Arial,sans-serif;
+}
+.score-pill.ok { background:var(--ok-bg); color:var(--ok); border-color:#86efac; }
+.score-pill.err { background:var(--err-bg); color:var(--err); border-color:#fca5a5; }
+.score-pill.neutral { background:var(--gris-bg); color:var(--muted); border-color:var(--gris-border); }
+.score-pill .pill-ico { font-size:13px; }
+
+/* Timer */
+#timer-display {
+  font-family:'Marianne',Arial,sans-serif; font-size:13px; font-weight:800;
+  color:var(--bleu); min-width:52px; text-align:center; letter-spacing:.02em;
+  padding:4px 10px; border:1.5px solid var(--gris-border); border-radius:30px;
+  background:var(--gris-bg);
+}
+#timer-display.urgent { color:var(--rouge); border-color:#fca5a5; background:var(--err-bg); animation:pulse-urgent .6s ease infinite alternate; }
+@keyframes pulse-urgent { from{opacity:1} to{opacity:.6} }
+
+/* Progress bar */
+#progress-bar-wrap { width:180px; flex-shrink:0; }
+.prog-label { font-size:9px; color:var(--muted); margin-bottom:3px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
+.prog-bar { height:6px; background:var(--gris-card); border-radius:3px; overflow:hidden; }
+.prog-fill { height:100%; background:var(--ok); border-radius:3px; transition:width .35s ease; }
+
+/* Abandon btn */
+.tb-quit {
+  padding:5px 12px; font-size:10px; font-weight:700; cursor:pointer;
+  border:1.5px solid var(--gris-border); background:transparent; color:var(--muted);
+  border-radius:3px; transition:all .15s; text-transform:uppercase; letter-spacing:.05em;
+  font-family:'Marianne',Arial,sans-serif; flex-shrink:0;
+}
+.tb-quit:hover { border-color:var(--rouge); color:var(--rouge); background:var(--err-bg); }
+
+/* ─── Carte ──────────────────────────────────────────────── */
+#map-wrap { flex:1; position:relative; overflow:hidden; }
+#map { width:100%; height:100%; background:#c9d8e8; }
+.leaflet-container { background:#c9d8e8 !important; }
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+  border-radius:0 !important; border:1px solid var(--gris-border) !important;
+  color:var(--bleu) !important; background:#fff !important;
+}
+.leaflet-control-zoom-in:hover, .leaflet-control-zoom-out:hover {
+  background:var(--bleu) !important; color:#fff !important;
+}
+.leaflet-bar { border-radius:0 !important; box-shadow:0 2px 8px rgba(0,0,0,.15) !important; }
+
+/* ─── Bandeau question ───────────────────────────────────── */
+#question-banner {
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  z-index:500; min-width:320px; max-width:94vw;
+  background:#fff; border-top:3px solid var(--bleu);
+  box-shadow:var(--shadow-lg); padding:14px 22px 12px;
+  text-align:center; pointer-events:none;
+  transition:opacity .25s;
+}
+#question-banner .q-label {
+  font-size:9.5px; font-weight:700; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.12em; margin-bottom:5px; display:block;
+}
+#question-banner .q-name {
+  font-family:'Marianne',Arial,sans-serif; font-size:22px; font-weight:800;
+  color:var(--text); letter-spacing:.01em; line-height:1.1;
+  transition:all .3s;
+}
+#question-banner .q-hint {
+  font-size:10px; color:var(--muted); margin-top:4px; font-style:italic;
+  min-height:14px;
+}
+#question-banner.correct { border-top-color:var(--ok); }
+#question-banner.wrong { border-top-color:var(--rouge); }
+
+/* Feedback flash overlay */
+#flash-msg {
+  position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+  z-index:600; padding:9px 20px; border-radius:30px; font-size:13px; font-weight:700;
+  font-family:'Marianne',Arial,sans-serif; letter-spacing:.02em;
+  opacity:0; pointer-events:none; white-space:nowrap;
+  transition:opacity .2s, transform .2s;
+}
+#flash-msg.show { opacity:1; transform:translateX(-50%) translateY(-4px); }
+#flash-msg.ok-flash { background:var(--ok); color:#fff; }
+#flash-msg.err-flash { background:var(--rouge); color:#fff; }
+
+/* ─── Bouton « Passer » ──────────────────────────────────── */
+#btn-skip {
+  position:absolute; bottom:20px; right:20px; z-index:600;
+  padding:9px 18px; font-size:11px; font-weight:700;
+  background:#fff; color:var(--muted); border:1.5px solid var(--gris-border);
+  border-radius:3px; cursor:pointer; transition:all .15s;
+  text-transform:uppercase; letter-spacing:.05em; font-family:'Marianne',Arial,sans-serif;
+  box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+#btn-skip:hover { border-color:var(--warn); color:var(--warn); background:var(--warn-bg); }
+
+/* ─── Compteur communes restantes ─────────────────────────── */
+#communes-left-badge {
+  position:absolute; bottom:20px; left:20px; z-index:600;
+  background:var(--bleu); color:#fff; padding:8px 14px; border-radius:3px;
+  font-size:11px; font-weight:700; letter-spacing:.04em;
+  font-family:'Marianne',Arial,sans-serif; box-shadow:0 2px 8px rgba(0,49,137,.3);
+}
+#communes-left-badge span { font-size:18px; font-weight:800; display:block; line-height:1.1; }
+
+/* ─── Écran de fin ───────────────────────────────────────── */
+#screen-end {
+  position:fixed; inset:0; z-index:8000; background:rgba(0,49,137,.92);
+  display:none; align-items:center; justify-content:center;
+}
+#screen-end.active { display:flex; }
+.end-card {
+  background:#fff; width:560px; max-width:94vw; max-height:90vh; overflow-y:auto;
+  border-top:5px solid var(--rouge); box-shadow:var(--shadow-lg); padding:32px 36px 28px;
+}
+.end-card::-webkit-scrollbar { width:3px; }
+.end-card::-webkit-scrollbar-thumb { background:var(--gris-border); border-radius:2px; }
+.end-card h2 { font-size:26px; font-weight:800; color:var(--text); margin-bottom:4px; }
+.end-card .end-sub { font-size:12px; color:var(--muted); margin-bottom:24px; line-height:1.5; }
+.stats-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:24px; }
+.stat-box { background:var(--gris-bg); padding:14px 12px; border-radius:4px; text-align:center; border:1px solid var(--gris-border); }
+.stat-box .stat-val { font-size:28px; font-weight:800; color:var(--bleu); display:block; line-height:1; margin-bottom:3px; }
+.stat-box .stat-lbl { font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+.stat-box.ok-stat .stat-val { color:var(--ok); }
+.stat-box.err-stat .stat-val { color:var(--err); }
+.rating-banner { padding:14px 18px; margin-bottom:20px; border-radius:4px; border-left:4px solid; }
+.rating-banner .rating-ico { font-size:28px; display:block; margin-bottom:6px; }
+.rating-banner .rating-txt { font-size:14px; font-weight:800; color:var(--text); margin-bottom:2px; }
+.rating-banner .rating-sub { font-size:11px; color:var(--muted); line-height:1.5; }
+.rating-banner.gold { background:#fef9ee; border-color:var(--gold); }
+.rating-banner.ok { background:var(--ok-bg); border-color:var(--ok); }
+.rating-banner.neutral { background:var(--warn-bg); border-color:var(--gold); }
+.rating-banner.err { background:var(--err-bg); border-color:var(--err); }
+.missed-section { margin-bottom:20px; }
+.missed-section h3 { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--text); margin-bottom:10px; }
+.missed-grid { display:flex; flex-wrap:wrap; gap:5px; }
+.missed-tag {
+  font-size:10px; padding:3px 9px; border-radius:30px;
+  border:1px solid var(--err); color:var(--err); background:var(--err-bg);
+  font-weight:700; font-family:'Marianne',Arial,sans-serif;
+}
+.passed-tag {
+  font-size:10px; padding:3px 9px; border-radius:30px;
+  border:1px solid var(--warn); color:var(--warn); background:var(--warn-bg);
+  font-weight:700; font-family:'Marianne',Arial,sans-serif;
+}
+.end-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.end-btn-primary {
+  flex:1; min-width:140px; padding:12px; font-size:13px; font-weight:800;
+  background:var(--bleu); color:#fff; border:none; cursor:pointer; border-radius:3px;
+  text-transform:uppercase; letter-spacing:.04em; transition:all .15s;
+  font-family:'Marianne',Arial,sans-serif;
+}
+.end-btn-primary:hover { background:var(--bleu-light); transform:translateY(-1px); }
+.end-btn-secondary {
+  flex:1; min-width:120px; padding:12px; font-size:12px; font-weight:700;
+  background:transparent; color:var(--bleu); border:2px solid var(--bleu); cursor:pointer; border-radius:3px;
+  text-transform:uppercase; letter-spacing:.04em; transition:all .15s;
+  font-family:'Marianne',Arial,sans-serif;
+}
+.end-btn-secondary:hover { background:#e8eeff; }
+
+/* Confetti canvas */
+#confetti-canvas { position:fixed; inset:0; z-index:7999; pointer-events:none; }
+
+/* Tooltip personnalisé */
+.commune-tt {
+  background:#fff !important; border:1px solid var(--gris-border) !important;
+  border-top:2px solid var(--bleu) !important; border-radius:0 !important;
+  color:var(--text) !important; font-family:'Marianne',Arial,sans-serif !important;
+  font-size:12px !important; padding:5px 9px !important;
+  box-shadow:0 4px 16px rgba(0,32,100,.15) !important;
+}
+
+/* Animation de pulsation sur la commune cible */
+@keyframes pulse-target {
+  0%,100% { fill-opacity:0.85; }
+  50% { fill-opacity:0.55; }
+}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width:640px) {
+  #progress-bar-wrap { display:none; }
+  #timer-display { display:none; }
+  .score-pill .pill-label { display:none; }
+  .home-card { padding:22px 18px; }
+  #question-banner .q-name { font-size:18px; }
+  .stats-grid { grid-template-columns:1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Chargement -->
+<div id="screen-loading">
+  <div class="rf-bloc">
+    <div class="rf-flag"><span></span><span></span><span></span></div>
+    <div class="rf-label">
+      <strong>République Française</strong>
+      <em>Préfecture des Bouches-du-Rhône</em>
+    </div>
+  </div>
+  <h1>Géo-Quiz — Bouches-du-Rhône</h1>
+  <div class="spin"></div>
+  <div id="loading-sub">Chargement des données géographiques…</div>
+</div>
+
+<!-- Accueil -->
+<div id="screen-home">
+  <div class="home-card">
+    <div class="home-logo">
+      <div class="flag-mini"><span></span><span></span><span></span></div>
+      <div class="home-logo-text">
+        <strong>Géo-Quiz — BDR</strong>
+        <em>Préfecture des Bouches-du-Rhône</em>
+      </div>
+    </div>
+    <h2>Connaissez-vous votre département ?</h2>
+    <p>Un nom de commune s'affiche — cliquez sur la bonne zone sur la carte. Combien de communes des Bouches-du-Rhône saurez-vous localiser ?</p>
+
+    <div style="margin-bottom:14px">
+      <div class="prog-label" style="margin-bottom:8px">Mode de jeu</div>
+      <div class="mode-grid">
+        <button class="mode-btn selected" onclick="selectMode('toutes',this)">
+          <span class="mode-icon">🗺️</span>
+          <span class="mode-name">Toutes les communes</span>
+          <span class="mode-desc">Les ~119 communes du département, sans filtre</span>
+        </button>
+        <button class="mode-btn" onclick="selectMode('grandes',this)">
+          <span class="mode-icon">🏙️</span>
+          <span class="mode-name">Grandes communes</span>
+          <span class="mode-desc">Seulement les communes les plus connues (codes ≤ 13080)</span>
+        </button>
+        <button class="mode-btn" onclick="selectMode('chrono',this)">
+          <span class="mode-icon">⏱️</span>
+          <span class="mode-name">Contre la montre</span>
+          <span class="mode-desc">Toutes les communes — 45 sec par question</span>
+        </button>
+        <button class="mode-btn" onclick="selectMode('blitz',this)">
+          <span class="mode-icon">⚡</span>
+          <span class="mode-name">Mode Blitz</span>
+          <span class="mode-desc">20 communes tirées au sort — vitesse et précision</span>
+        </button>
+      </div>
+    </div>
+
+    <button class="home-start-btn" id="btn-start" onclick="startGame()" disabled>
+      Chargement…
+    </button>
+    <p class="home-stats-note" id="commune-count-note">Chargement des données…</p>
+  </div>
+</div>
+
+<!-- Application principale -->
+<div id="app">
+  <div id="topbar">
+    <div class="tb-brand">
+      <div class="tb-flag"><span></span><span></span><span></span></div>
+      <div class="tb-title">
+        <strong>Géo-Quiz</strong>
+        <span>Bouches-du-Rhône (13)</span>
+      </div>
+    </div>
+    <div class="tb-sep"></div>
+
+    <div id="progress-bar-wrap">
+      <div class="prog-label">Progression</div>
+      <div class="prog-bar">
+        <div class="prog-fill" id="prog-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="tb-flex"></div>
+
+    <div class="score-bar">
+      <div id="timer-display" style="display:none">00:00</div>
+      <div class="score-pill ok"><span class="pill-ico">✓</span><span id="score-ok">0</span><span class="pill-label"> corrects</span></div>
+      <div class="score-pill err"><span class="pill-ico">✗</span><span id="score-err">0</span><span class="pill-label"> erreurs</span></div>
+      <div class="score-pill neutral"><span class="pill-ico">↷</span><span id="score-skip">0</span><span class="pill-label"> passées</span></div>
+    </div>
+
+    <div class="tb-sep"></div>
+    <button class="tb-quit" onclick="confirmQuit()">✕ Quitter</button>
+  </div>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <!-- Bandeau question -->
+    <div id="question-banner">
+      <span class="q-label">Trouvez sur la carte</span>
+      <div class="q-name" id="q-name">—</div>
+      <div class="q-hint" id="q-hint"></div>
+    </div>
+
+    <!-- Flash retour -->
+    <div id="flash-msg"></div>
+
+    <!-- Badge communes restantes -->
+    <div id="communes-left-badge">
+      <span id="left-count">0</span>
+      communes restantes
+    </div>
+
+    <!-- Bouton passer -->
+    <button id="btn-skip" onclick="skipCommune()">⇥ Passer</button>
+  </div>
+</div>
+
+<!-- Écran de fin -->
+<div id="screen-end">
+  <canvas id="confetti-canvas"></canvas>
+  <div class="end-card">
+    <h2 id="end-title">Résultats</h2>
+    <p class="end-sub" id="end-sub"></p>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-val" id="end-total">0</span>
+        <span class="stat-lbl">Communes jouées</span>
+      </div>
+      <div class="stat-box ok-stat">
+        <span class="stat-val" id="end-ok">0</span>
+        <span class="stat-lbl">Correctes au 1er essai</span>
+      </div>
+      <div class="stat-box err-stat">
+        <span class="stat-val" id="end-err">0</span>
+        <span class="stat-lbl">Erreurs totales</span>
+      </div>
+    </div>
+
+    <div class="rating-banner" id="rating-banner">
+      <span class="rating-ico" id="rating-ico"></span>
+      <div class="rating-txt" id="rating-txt"></div>
+      <div class="rating-sub" id="rating-sub"></div>
+    </div>
+
+    <div class="missed-section" id="missed-section" style="display:none">
+      <h3>Erreurs &amp; passages</h3>
+      <div class="missed-grid" id="missed-grid"></div>
+    </div>
+
+    <div class="end-actions">
+      <button class="end-btn-primary" onclick="restartSame()">↺ Rejouer (même mode)</button>
+      <button class="end-btn-secondary" onclick="goHome()">← Menu principal</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   DONNÉES & ÉTAT DU JEU
+   ══════════════════════════════════════════════════════════ */
+let geoData = null;
+let map = null;
+let geojsonLayer = null;
+let featureLayers = {};     // code → layer
+let communeList = [];       // liste totale
+let gameQueue = [];         // communes à trouver (shuffle)
+let currentIdx = 0;
+let currentFeature = null;
+let gameMode = 'toutes';    // 'toutes'|'grandes'|'chrono'|'blitz'
+let scoreOk = 0;
+let scoreErr = 0;
+let scoreSkip = 0;
+let firstTryCorrect = {};   // code → bool
+let wrongCodes = new Set();
+let passedCodes = new Set();
+let foundCodes = new Set();
+let gameStartTime = null;
+let timerInterval = null;
+let questionTimer = null;
+let isAnimating = false;
+let lastSavedMode = 'toutes';
+
+/* ══════════════════════════════════════════════════════════
+   CHARGEMENT
+   ══════════════════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    document.getElementById('loading-sub').textContent = 'Chargement des contours communes…';
+    geoData = await fetchJSON(
+      'https://geo.api.gouv.fr/departements/13/communes?geometry=contour&format=geojson&fields=nom,code'
+    );
+    // Filtrer les features sans géométrie
+    geoData.features = geoData.features.filter(f => f.geometry && f.properties.nom && f.properties.code);
+    communeList = geoData.features.map(f => ({ nom: f.properties.nom, code: f.properties.code }));
+    communeList.sort((a,b) => a.nom.localeCompare(b.nom,'fr'));
+
+    document.getElementById('commune-count-note').textContent =
+      `${communeList.length} communes chargées — Bouches-du-Rhône`;
+    document.getElementById('btn-start').disabled = false;
+    document.getElementById('btn-start').textContent = '▶ Démarrer le jeu';
+
+    document.getElementById('screen-loading').style.display = 'none';
+    document.getElementById('screen-home').classList.add('active');
+  } catch(e) {
+    document.getElementById('loading-sub').textContent = '⚠ Erreur de chargement. Vérifiez la connexion.';
+    console.error(e);
+  }
+});
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
+}
+
+/* ══════════════════════════════════════════════════════════
+   ACCUEIL — SÉLECTION MODE
+   ══════════════════════════════════════════════════════════ */
+function selectMode(mode, el) {
+  gameMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+/* ══════════════════════════════════════════════════════════
+   DÉMARRAGE
+   ══════════════════════════════════════════════════════════ */
+function startGame() {
+  lastSavedMode = gameMode;
+  document.getElementById('screen-home').classList.remove('active');
+  document.getElementById('app').classList.add('active');
+
+  // Réinitialiser l'état
+  scoreOk = 0; scoreErr = 0; scoreSkip = 0;
+  firstTryCorrect = {}; wrongCodes = new Set(); passedCodes = new Set(); foundCodes = new Set();
+  isAnimating = false;
+  updateScoreDisplay();
+
+  // Construire la file
+  let pool = [...communeList];
+  if(gameMode === 'grandes') {
+    // Filtre : communes dont le code de tri suggère une taille raisonnable
+    // On garde communes dont le code finit ≤ 13080 (approx les + connues)
+    // En pratique on garde les communes avec un code ≤ 13080 ou des noms connus
+    const connus = new Set([
+      '13001','13004','13005','13006','13007','13008','13009','13010',
+      '13011','13013','13014','13015','13016','13019','13021','13023',
+      '13025','13028','13031','13032','13039','13040','13044','13047',
+      '13048','13049','13050','13053','13054','13055','13056','13057',
+      '13059','13063','13065','13069','13070','13071','13075','13076',
+      '13078','13079','13080','13082','13085','13087','13089','13090',
+      '13091','13092','13093','13094','13095','13097','13100','13103',
+      '13108','13109','13110','13111','13112','13113','13114','13115',
+      '13116','13117','13119','13120'
+    ]);
+    pool = pool.filter(c => connus.has(c.code));
+    if(pool.length < 5) pool = [...communeList]; // fallback
+  }
+  if(gameMode === 'blitz') {
+    pool = shuffle(pool).slice(0, 20);
+  } else {
+    pool = shuffle(pool);
+  }
+
+  gameQueue = pool;
+  currentIdx = 0;
+
+  // Initialiser la carte
+  if(map) { map.remove(); map = null; }
+  featureLayers = {};
+  map = L.map('map', { zoomControl:true, attributionControl:true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+    attribution:'© OpenStreetMap | © CARTO',
+    subdomains:'abcd', maxZoom:18
+  }).addTo(map);
+
+  geojsonLayer = L.geoJSON(geoData, {
+    style: defaultStyle,
+    onEachFeature: (feature, layer) => {
+      const code = feature.properties.code;
+      featureLayers[code] = layer;
+      layer.on('click', () => handleClick(feature, layer));
+      layer.on('mouseover', () => {
+        if(!foundCodes.has(code)) {
+          layer.setStyle({ fillOpacity:0.75, weight:2 });
+        }
+      });
+      layer.on('mouseout', () => {
+        if(!foundCodes.has(code)) {
+          layer.setStyle(defaultStyle(feature));
+        }
+      });
+    }
+  }).addTo(map);
+
+  map.fitBounds(geojsonLayer.getBounds(), { padding:[20,20] });
+
+  // Timer global
+  gameStartTime = Date.now();
+
+  // Timer par question si mode chrono
+  if(gameMode === 'chrono') {
+    document.getElementById('timer-display').style.display = '';
+    startQuestionTimer();
+  }
+
+  nextQuestion();
+}
+
+/* ══════════════════════════════════════════════════════════
+   STYLES CARTE
+   ══════════════════════════════════════════════════════════ */
+function defaultStyle() {
+  return { fillColor:'#b8cce4', fillOpacity:0.6, color:'#6a93c0', weight:1.2, dashArray:null };
+}
+function foundStyle() {
+  return { fillColor:'#16a34a', fillOpacity:0.72, color:'#166534', weight:1.8 };
+}
+function wrongStyle() {
+  return { fillColor:'#dc2626', fillOpacity:0.72, color:'#991b1b', weight:2 };
+}
+function targetPulseStyle() {
+  return { fillColor:'#f59e0b', fillOpacity:0.5, color:'#d97706', weight:2, dashArray:'5,3' };
+}
+
+/* ══════════════════════════════════════════════════════════
+   LOGIQUE JEU
+   ══════════════════════════════════════════════════════════ */
+function nextQuestion() {
+  if(currentIdx >= gameQueue.length) {
+    endGame(); return;
+  }
+  clearQuestionTimer();
+  isAnimating = false;
+
+  const commune = gameQueue[currentIdx];
+  currentFeature = geoData.features.find(f => f.properties.code === commune.code);
+
+  // Mise à jour UI
+  const banner = document.getElementById('question-banner');
+  banner.className = '';
+  document.getElementById('q-name').textContent = commune.nom;
+  document.getElementById('q-hint').textContent = '';
+  document.getElementById('left-count').textContent = gameQueue.length - currentIdx;
+
+  // Progression
+  const pct = Math.round((foundCodes.size / gameQueue.length) * 100);
+  document.getElementById('prog-fill').style.width = pct + '%';
+
+  // Init firstTry si pas encore vu
+  if(!(commune.code in firstTryCorrect)) {
+    firstTryCorrect[commune.code] = true; // optimiste, sera mis à false si erreur
+  }
+
+  // Timer si mode chrono
+  if(gameMode === 'chrono') {
+    startQuestionTimer();
+  }
+}
+
+function handleClick(feature, layer) {
+  if(isAnimating) return;
+  const code = feature.properties.code;
+  const nom = feature.properties.nom;
+
+  // Commune déjà trouvée → ignore
+  if(foundCodes.has(code)) return;
+
+  const targetCode = gameQueue[currentIdx]?.code;
+  if(!targetCode) return;
+
+  if(code === targetCode) {
+    // ✓ Correct
+    isAnimating = true;
+    clearQuestionTimer();
+    foundCodes.add(code);
+    layer.setStyle(foundStyle());
+    layer.unbindTooltip();
+
+    scoreOk++;
+    if(firstTryCorrect[code] !== false) {
+      // On ne décrémente pas, c'est déjà ok
+    }
+    updateScoreDisplay();
+
+    showFlash('✓ ' + nom, 'ok-flash');
+    document.getElementById('question-banner').classList.add('correct');
+    document.getElementById('q-name').textContent = '✓ ' + nom;
+    document.getElementById('q-hint').textContent = 'Bien trouvé !';
+
+    // Zoom bref sur la commune
+    const bounds = layer.getBounds();
+    map.flyToBounds(bounds, { padding:[60,60], maxZoom:12, duration:0.6 });
+
+    setTimeout(() => {
+      currentIdx++;
+      isAnimating = false;
+      nextQuestion();
+    }, 900);
+
+  } else {
+    // ✗ Mauvaise réponse
+    scoreErr++;
+    firstTryCorrect[targetCode] = false;
+    wrongCodes.add(targetCode);
+    updateScoreDisplay();
+
+    // Flash rouge sur la commune cliquée
+    const origStyle = defaultStyle();
+    layer.setStyle(wrongStyle());
+    showFlash('✗ C\'est ' + nom + ' — cherchez encore', 'err-flash');
+    document.getElementById('question-banner').classList.add('wrong');
+    document.getElementById('q-hint').textContent = 'Ce n\'était pas la bonne commune…';
+
+    setTimeout(() => {
+      if(!foundCodes.has(code)) layer.setStyle(defaultStyle());
+      document.getElementById('question-banner').classList.remove('wrong');
+      document.getElementById('q-hint').textContent = '';
+    }, 1200);
+  }
+}
+
+function skipCommune() {
+  if(isAnimating) return;
+  const commune = gameQueue[currentIdx];
+  if(!commune) return;
+  clearQuestionTimer();
+
+  // Révéler brièvement la bonne commune
+  const layer = featureLayers[commune.code];
+  if(layer) {
+    layer.setStyle(targetPulseStyle());
+    const bounds = layer.getBounds();
+    map.flyToBounds(bounds, { padding:[80,80], maxZoom:11, duration:0.5 });
+    setTimeout(() => {
+      if(!foundCodes.has(commune.code)) layer.setStyle(defaultStyle());
+    }, 2000);
+  }
+
+  scoreSkip++;
+  passedCodes.add(commune.code);
+  firstTryCorrect[commune.code] = false;
+  updateScoreDisplay();
+  showFlash('↷ Passé — ' + commune.nom, 'err-flash');
+
+  // Remettre à la fin de la file (sauf si mode blitz)
+  if(gameMode !== 'blitz') {
+    const skipped = gameQueue.splice(currentIdx, 1)[0];
+    gameQueue.push(skipped);
+    // ne pas incrémenter currentIdx
+  } else {
+    currentIdx++;
+    passedCodes.add(commune.code);
+  }
+
+  setTimeout(() => nextQuestion(), 2200);
+  isAnimating = true;
+}
+
+/* ══════════════════════════════════════════════════════════
+   TIMER (MODE CHRONO)
+   ══════════════════════════════════════════════════════════ */
+const QUESTION_TIME = 45; // secondes
+let questionTimeLeft = QUESTION_TIME;
+
+function startQuestionTimer() {
+  clearQuestionTimer();
+  questionTimeLeft = QUESTION_TIME;
+  updateTimerDisplay();
+  questionTimer = setInterval(() => {
+    questionTimeLeft--;
+    updateTimerDisplay();
+    if(questionTimeLeft <= 0) {
+      clearQuestionTimer();
+      skipCommune();
+    }
+  }, 1000);
+}
+
+function clearQuestionTimer() {
+  if(questionTimer) { clearInterval(questionTimer); questionTimer = null; }
+  const td = document.getElementById('timer-display');
+  td.classList.remove('urgent');
+}
+
+function updateTimerDisplay() {
+  const td = document.getElementById('timer-display');
+  const s = questionTimeLeft;
+  td.textContent = '0:' + String(s).padStart(2,'0');
+  td.classList.toggle('urgent', s <= 10);
+}
+
+/* ══════════════════════════════════════════════════════════
+   AFFICHAGE
+   ══════════════════════════════════════════════════════════ */
+function updateScoreDisplay() {
+  document.getElementById('score-ok').textContent = scoreOk;
+  document.getElementById('score-err').textContent = scoreErr;
+  document.getElementById('score-skip').textContent = scoreSkip;
+}
+
+let flashTimeout = null;
+function showFlash(msg, cls) {
+  const el = document.getElementById('flash-msg');
+  el.className = cls + ' show';
+  el.textContent = msg;
+  if(flashTimeout) clearTimeout(flashTimeout);
+  flashTimeout = setTimeout(() => {
+    el.classList.remove('show');
+  }, 1800);
+}
+
+/* ══════════════════════════════════════════════════════════
+   FIN DE JEU
+   ══════════════════════════════════════════════════════════ */
+function endGame() {
+  clearQuestionTimer();
+  if(timerInterval) clearInterval(timerInterval);
+
+  const total = gameQueue.length;
+  const firstTryOk = Object.values(firstTryCorrect).filter(v => v === true).length;
+  // Note: certaines communes passées ne sont pas dans firstTryCorrect (si jamais trouvées)
+  const realFound = foundCodes.size;
+  const actualFirstTry = Object.entries(firstTryCorrect)
+    .filter(([code, v]) => v === true && foundCodes.has(code)).length;
+  const pct = total > 0 ? Math.round((actualFirstTry / total) * 100) : 0;
+
+  document.getElementById('end-total').textContent = total;
+  document.getElementById('end-ok').textContent = actualFirstTry;
+  document.getElementById('end-err').textContent = scoreErr;
+
+  // Rating
+  const rb = document.getElementById('rating-banner');
+  const ri = document.getElementById('rating-ico');
+  const rt = document.getElementById('rating-txt');
+  const rs = document.getElementById('rating-sub');
+
+  let title, sub, ratingClass, ico;
+  if(pct >= 90) {
+    ico='🏆'; title='Parfait ! Connaissance excellente du département';
+    sub = `${pct}% de réussite au premier essai — vous connaissez vos Bouches-du-Rhône sur le bout des doigts.`;
+    ratingClass='gold';
+    launchConfetti();
+  } else if(pct >= 70) {
+    ico='🥇'; title='Très bien — Solide connaissance géographique';
+    sub = `${pct}% au premier essai — encore quelques communes à travailler, mais c'est une bonne base.`;
+    ratingClass='ok';
+  } else if(pct >= 45) {
+    ico='🥈'; title='Correct — Il y a de la marge pour progresser';
+    sub = `${pct}% au premier essai — entraînez-vous encore, vous y arriverez.`;
+    ratingClass='neutral';
+  } else {
+    ico='📚'; title='À retravailler — Mais le jeu est là pour ça !';
+    sub = `${pct}% au premier essai — relancez une partie, la géographie ça s'apprend !`;
+    ratingClass='err';
+  }
+
+  ri.textContent = ico;
+  rt.textContent = title;
+  rs.textContent = sub;
+  rb.className = 'rating-banner ' + ratingClass;
+  document.getElementById('end-title').textContent = 'Résultats — ' + total + ' communes';
+  document.getElementById('end-sub').textContent = `Partie terminée en ${formatDuration(Date.now() - gameStartTime)}.`;
+
+  // Communes ratées/passées
+  const missed = [];
+  gameQueue.forEach(c => {
+    if(wrongCodes.has(c.code) && !passedCodes.has(c.code)) missed.push({ nom: c.nom, type:'err' });
+    else if(passedCodes.has(c.code)) missed.push({ nom: c.nom, type:'pass' });
+  });
+  if(missed.length > 0) {
+    document.getElementById('missed-section').style.display = '';
+    document.getElementById('missed-grid').innerHTML = missed.map(m =>
+      `<span class="${m.type==='err'?'missed-tag':'passed-tag'}">${m.nom}</span>`
+    ).join('');
+  } else {
+    document.getElementById('missed-section').style.display = 'none';
+  }
+
+  document.getElementById('screen-end').classList.add('active');
+}
+
+function formatDuration(ms) {
+  const s = Math.floor(ms/1000);
+  if(s < 60) return s + 's';
+  return Math.floor(s/60) + 'min ' + (s%60) + 's';
+}
+
+/* ══════════════════════════════════════════════════════════
+   NAVIGATION
+   ══════════════════════════════════════════════════════════ */
+function confirmQuit() {
+  if(confirm('Abandonner la partie en cours ?')) {
+    endGame();
+  }
+}
+
+function restartSame() {
+  document.getElementById('screen-end').classList.remove('active');
+  gameMode = lastSavedMode;
+  startGame();
+}
+
+function goHome() {
+  document.getElementById('screen-end').classList.remove('active');
+  document.getElementById('app').classList.remove('active');
+  clearQuestionTimer();
+  if(timerInterval) clearInterval(timerInterval);
+  // Remettre le mode précédent coché
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelector(`.mode-btn[onclick*="${lastSavedMode}"]`)?.classList.add('selected');
+  gameMode = lastSavedMode;
+  document.getElementById('screen-home').classList.add('active');
+}
+
+/* ══════════════════════════════════════════════════════════
+   CONFETTIS (fin parfaite)
+   ══════════════════════════════════════════════════════════ */
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  const particles = [];
+  const colors = ['#003189','#E1000F','#f59e0b','#16a34a','#ffffff','#6366f1'];
+  for(let i = 0; i < 160; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: -10 - Math.random() * 200,
+      r: 4 + Math.random() * 6,
+      d: 1.5 + Math.random() * 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      angle: Math.random() * 2 * Math.PI,
+      spin: (Math.random() - 0.5) * 0.1,
+      tilt: (Math.random() - 0.5) * 12,
+      shape: Math.random() > 0.5 ? 'rect' : 'circle'
+    });
+  }
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.color;
+      if(p.shape === 'rect') {
+        ctx.fillRect(-p.r, -p.r/2, p.r*2, p.r);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r, 0, 2*Math.PI);
+        ctx.fill();
+      }
+      ctx.restore();
+      p.y += p.d;
+      p.x += Math.sin(p.angle) * 1.2;
+      p.angle += p.spin;
+      p.tilt += p.spin;
+      if(p.y > canvas.height) {
+        p.y = -10;
+        p.x = Math.random() * canvas.width;
+      }
+    });
+    frame++;
+    if(frame < 280) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+
+/* ══════════════════════════════════════════════════════════
+   UTILITAIRES
+   ══════════════════════════════════════════════════════════ */
+function shuffle(arr) {
+  const a = [...arr];
+  for(let i = a.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+</script>
+</body>
+</html>
